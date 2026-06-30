@@ -388,6 +388,7 @@ body {
   font-size: 15px;
   line-height: 1.8;
   color: var(--text);
+  transition: opacity 0.15s ease-out;
 }
 
 .content-body h1, .content-body h2, .content-body h3 {

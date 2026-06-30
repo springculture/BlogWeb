@@ -217,11 +217,13 @@ function displayContent(section, data) {
 
   const permMap = { guest: '游客可见', user: '登录用户可见', admin: '管理员可见' };
   const perm = data.permission || 'guest';
-  permBadge.textContent = permMap[perm] || '';
-  permBadge.className = 'perm-badge ' + perm;
+  if (permBadge) {
+    permBadge.textContent = permMap[perm] || '';
+    permBadge.className = 'perm-badge ' + perm;
+  }
 
   bodyEl.style.display = 'block';
-  editorEl.style.display = 'none';
+  if (editorEl) editorEl.style.display = 'none';
   updateTabVisibility(section, perm);
 }
 
@@ -568,6 +570,7 @@ async function loadProfile() {
     document.getElementById('nickname-display').textContent = nickname || '我的博客';
     document.getElementById('signature-display').textContent = signature || '欢迎来到我的个人博客';
     state.profileCache = { avatar, nickname, signature };
+    saveProfileToCache();
   } catch {
     document.getElementById('avatar-img').src = DEFAULT_AVATAR;
     document.getElementById('nickname-display').textContent = '我的博客';
@@ -600,6 +603,7 @@ async function saveProfile() {
       body: JSON.stringify({ title: nickname, body })
     });
     state.profileCache = { avatar, nickname, signature };
+    saveProfileToCache();
     document.getElementById('avatar-img').src = avatar || DEFAULT_AVATAR;
     document.getElementById('nickname-display').textContent = nickname || '我的博客';
     document.getElementById('signature-display').textContent = signature || '欢迎来到我的个人博客';
@@ -722,6 +726,44 @@ function escapeHtml(str) {
 
 // ===== Preload =====
 let preloadDone = false;
+
+function restoreContentFromCache() {
+  try {
+    const cached = localStorage.getItem('content_cache_v1');
+    if (!cached) return false;
+    const list = JSON.parse(cached);
+    for (const item of list) {
+      state.contentCache[item.section] = item;
+    }
+    return true;
+  } catch { return false; }
+}
+
+function saveContentToCache() {
+  try {
+    localStorage.setItem('content_cache_v1', JSON.stringify(Object.values(state.contentCache)));
+  } catch {}
+}
+
+function restoreProfileFromCache() {
+  try {
+    const cached = localStorage.getItem('profile_cache_v1');
+    if (!cached) return false;
+    const p = JSON.parse(cached);
+    state.profileCache = p;
+    document.getElementById('avatar-img').src = p.avatar || DEFAULT_AVATAR;
+    document.getElementById('nickname-display').textContent = p.nickname || '我的博客';
+    document.getElementById('signature-display').textContent = p.signature || '欢迎来到我的个人博客';
+    return true;
+  } catch { return false; }
+}
+
+function saveProfileToCache() {
+  try {
+    localStorage.setItem('profile_cache_v1', JSON.stringify(state.profileCache));
+  } catch {}
+}
+
 async function preloadAllContent() {
   if (preloadDone) return;
   try {
@@ -730,6 +772,7 @@ async function preloadAllContent() {
       state.contentCache[item.section] = item;
     }
     preloadDone = true;
+    saveContentToCache();
   } catch {}
 }
 
@@ -761,9 +804,24 @@ async function init() {
   });
 
   renderCalendar();
-  await Promise.all([checkAuth(), loadProfile()]);
-  await preloadAllContent();
+
+  // 1. Restore from localStorage – feeds contentCache for instant display
+  restoreContentFromCache();
+  restoreProfileFromCache();
+
+  // 2. Show current tab immediately (cached content or skeleton)
   switchTab('personal');
+
+  // 3. Fetch latest data from server in background
+  await Promise.all([checkAuth(), loadProfile()]);
+  saveProfileToCache();
+  await preloadAllContent();
+
+  // 4. Re-render current section with fresh data (if changed)
+  const s = state.currentSection;
+  if (s && s !== 'admin' && s !== 'guestbook' && state.contentCache[s]) {
+    displayContent(s, state.contentCache[s]);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
