@@ -554,6 +554,25 @@ function renderCalendar() {
 
 // ===== Profile =====
 async function loadProfile() {
+  // Use cached/SSR data if available
+  const cached = state.contentCache['profile'];
+  if (cached) {
+    try {
+      const body = cached.body || '{}';
+      const parsed = JSON.parse(body);
+      const avatar = parsed.avatar || '';
+      let nickname = parsed.nickname || '';
+      const signature = parsed.signature || '';
+      if (cached.title) nickname = nickname || cached.title;
+      document.getElementById('avatar-img').src = avatar || DEFAULT_AVATAR;
+      document.getElementById('nickname-display').textContent = nickname || '我的博客';
+      document.getElementById('signature-display').textContent = signature || '欢迎来到我的个人博客';
+      state.profileCache = { avatar, nickname, signature };
+      saveProfileToCache();
+      return;
+    } catch {}
+  }
+
   try {
     const data = await api('content?section=profile');
     let avatar = '', nickname = '', signature = '';
@@ -745,13 +764,26 @@ window.addEventListener('scroll', updateScrollTop);
 
 function restoreContentFromCache() {
   try {
-    const cached = localStorage.getItem('content_cache_v1');
-    if (!cached) return false;
-    const list = JSON.parse(cached);
-    for (const item of list) {
-      state.contentCache[item.section] = item;
+    // 1. SSR-injected data (highest priority, always fresh)
+    if (window.__INITIAL_CONTENT__) {
+      const list = window.__INITIAL_CONTENT__;
+      window.__INITIAL_CONTENT__ = null;
+      for (const item of list) {
+        state.contentCache[item.section] = item;
+      }
+      preloadDone = true;
+      return 'ssr';
     }
-    return true;
+    // 2. localStorage (for subsequent visits)
+    const cached = localStorage.getItem('content_cache_v1');
+    if (cached) {
+      const list = JSON.parse(cached);
+      for (const item of list) {
+        state.contentCache[item.section] = item;
+      }
+      return 'cache';
+    }
+    return false;
   } catch { return false; }
 }
 
@@ -762,6 +794,23 @@ function saveContentToCache() {
 }
 
 function restoreProfileFromCache() {
+  const profileData = state.contentCache['profile'];
+  if (profileData) {
+    try {
+      const body = profileData.body || '{}';
+      const parsed = JSON.parse(body);
+      const avatar = parsed.avatar || '';
+      let nickname = parsed.nickname || '';
+      const signature = parsed.signature || '';
+      if (profileData.title) nickname = nickname || profileData.title;
+      state.profileCache = { avatar, nickname, signature };
+      document.getElementById('avatar-img').src = avatar || DEFAULT_AVATAR;
+      document.getElementById('nickname-display').textContent = nickname || '我的博客';
+      document.getElementById('signature-display').textContent = signature || '欢迎来到我的个人博客';
+      return true;
+    } catch {}
+  }
+
   try {
     const cached = localStorage.getItem('profile_cache_v1');
     if (!cached) return false;
@@ -821,23 +870,29 @@ async function init() {
 
   renderCalendar();
 
-  // 1. Restore from localStorage – feeds contentCache for instant display
-  restoreContentFromCache();
+  // 1. Restore: SSR > localStorage — instant, no network
+  const source = restoreContentFromCache();
   restoreProfileFromCache();
-
-  // 2. Show current tab immediately (cached content or skeleton)
   switchTab('personal');
 
-  // 3. Fetch latest data from server in background
-  await Promise.all([checkAuth(), loadProfile()]);
-  saveProfileToCache();
-  await preloadAllContent();
+  // 2. Auth check
+  await checkAuth();
 
-  // 4. Re-render current section with fresh data (if changed)
-  const s = state.currentSection;
-  if (s && s !== 'admin' && s !== 'guestbook' && state.contentCache[s]) {
-    displayContent(s, state.contentCache[s]);
+  // 3. SSR data is per-request fresh from D1 → just persist locally
+  if (source === 'ssr') {
+    saveContentToCache();
+  } else {
+    // Cache or first visit → fetch fresh data in background
+    await preloadAllContent();
+    const s = state.currentSection;
+    if (s && s !== 'admin' && s !== 'guestbook' && state.contentCache[s]) {
+      displayContent(s, state.contentCache[s]);
+    }
   }
+
+  // 4. Profile (skips API if already in contentCache from SSR)
+  await loadProfile();
+  saveProfileToCache();
 }
 
 document.addEventListener('DOMContentLoaded', init);

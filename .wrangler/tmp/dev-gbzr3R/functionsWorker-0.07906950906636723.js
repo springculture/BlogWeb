@@ -240,6 +240,23 @@ async function onRequest2(context) {
 }
 __name(onRequest2, "onRequest2");
 __name2(onRequest2, "onRequest");
+async function onRequest3(context) {
+  const { request, env } = context;
+  const assetResponse = await env.ASSETS.fetch(request);
+  if (!assetResponse.ok) return assetResponse;
+  let html = await assetResponse.text();
+  try {
+    const { results } = await env.DB.prepare("SELECT * FROM content").all();
+    const safe = JSON.stringify(results).replace(/<\/script>/gi, "<\\/script>");
+    html = html.replace("</head>", `<script>window.__INITIAL_CONTENT__=${safe};<\/script></head>`);
+  } catch {
+  }
+  return new Response(html, {
+    headers: { "content-type": "text/html;charset=UTF-8" }
+  });
+}
+__name(onRequest3, "onRequest3");
+__name2(onRequest3, "onRequest");
 var routes = [
   {
     routePath: "/api/:path*",
@@ -253,7 +270,7 @@ var routes = [
     mountPath: "/",
     method: "",
     middlewares: [onRequest2],
-    modules: []
+    modules: [onRequest3]
   }
 ];
 function lexer(str) {
