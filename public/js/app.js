@@ -209,10 +209,17 @@ function displayContent(section, data) {
   const editorEl = document.getElementById(`editor-${section}`);
   const permBadge = document.getElementById(`perm-${section}`);
 
+  const body = data.body || '';
+  const format = data.format || 'html';
+  let contentHTML = body;
+  if (format === 'markdown' && typeof marked !== 'undefined') {
+    try { contentHTML = marked.parse(body); } catch { contentHTML = body; }
+  }
+
   if (data.title) {
-    bodyEl.innerHTML = `<h1>${escapeHtml(data.title)}</h1><hr>${data.body || '<div class="empty-state"><p>暂无内容</p></div>'}`;
+    bodyEl.innerHTML = `<h1>${escapeHtml(data.title)}</h1><hr>${contentHTML || '<div class="empty-state"><p>暂无内容</p></div>'}`;
   } else {
-    bodyEl.innerHTML = data.body || '<div class="empty-state"><p>暂无内容</p></div>';
+    bodyEl.innerHTML = contentHTML || '<div class="empty-state"><p>暂无内容</p></div>';
   }
 
   const permMap = { guest: '游客可见', user: '登录用户可见', admin: '管理员可见' };
@@ -241,6 +248,10 @@ function startEdit(section) {
   document.getElementById(`title-${section}`).value = data.title || '';
   document.getElementById(`body-editor-${section}`).value = data.body || '';
   document.getElementById(`perm-select-${section}`).value = data.permission || 'guest';
+  const fmtToggle = document.getElementById(`format-toggle-${section}`);
+  if (fmtToggle) fmtToggle.checked = (data.format === 'markdown');
+  const preview = document.getElementById(`preview-${section}`);
+  if (preview) preview.classList.remove('show');
   document.getElementById(`body-${section}`).style.display = 'none';
   document.getElementById(`editor-${section}`).style.display = 'block';
 }
@@ -255,14 +266,16 @@ async function saveContent(section) {
   const title = document.getElementById(`title-${section}`).value.trim();
   const body = document.getElementById(`body-editor-${section}`).value;
   const permission = document.getElementById(`perm-select-${section}`).value;
+  const fmtToggle = document.getElementById(`format-toggle-${section}`);
+  const format = (fmtToggle && fmtToggle.checked) ? 'markdown' : 'html';
 
   try {
     await api(`content/${section}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, body, permission })
+      body: JSON.stringify({ title, body, permission, format })
     });
-    state.contentCache[section] = { title, body, permission };
-    displayContent(section, { title, body, permission });
+    state.contentCache[section] = { title, body, permission, format };
+    displayContent(section, { title, body, permission, format });
   } catch (err) {
     alert('保存失败: ' + err.message);
   }
@@ -844,6 +857,7 @@ async function preloadAllContent() {
 // ===== Init =====
 async function init() {
   initTabs();
+  initEditorExtras();
 
   document.getElementById('login-username').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); login(); }
@@ -893,6 +907,79 @@ async function init() {
   // 4. Profile (skips API if already in contentCache from SSR)
   await loadProfile();
   saveProfileToCache();
+}
+
+// ===== Markdown helpers =====
+function initEditorExtras() {
+  for (const section of SECTIONS) {
+    const actions = document.querySelector(`#editor-${section} .editor-actions`);
+    if (!actions) continue;
+
+    // Preview button
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'btn btn-sm btn-outline';
+    previewBtn.textContent = '预览';
+    previewBtn.onclick = () => previewMarkdown(section);
+    previewBtn.style.marginLeft = 'auto';
+    actions.appendChild(previewBtn);
+
+    // Preview container after textarea
+    const textarea = document.getElementById(`body-editor-${section}`);
+    const preview = document.createElement('div');
+    preview.className = 'markdown-preview';
+    preview.id = `preview-${section}`;
+    textarea.parentNode.insertBefore(preview, textarea.nextSibling);
+  }
+
+  // Paste handler: auto-link URLs
+  document.addEventListener('paste', e => {
+    const textarea = e.target.closest('.editor-body');
+    if (!textarea) return;
+    const section = textarea.id.replace('body-editor-', '');
+    const fmtToggle = document.getElementById(`format-toggle-${section}`);
+    if (!fmtToggle || !fmtToggle.checked) return;
+
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    if (!pasted || !/^https?:\/\/\S+$/i.test(pasted.trim())) return;
+
+    e.preventDefault();
+    const url = pasted.trim();
+
+    // Insert [url](url) temporarily, then try to fetch title
+    insertAtCursor(textarea, `[${url}](${url})`);
+
+    // Silently fetch title and update
+    api('fetch-title', { method: 'POST', body: JSON.stringify({ url }) })
+      .then(data => {
+        const title = data.title || url;
+        const md = `[${title}](${url})`;
+        // Replace the first occurrence of the link in textarea
+        const cur = textarea.value;
+        const idx = cur.indexOf(`[${url}](${url})`);
+        if (idx !== -1) {
+          textarea.value = cur.substring(0, idx) + md + cur.substring(idx + `[${url}](${url})`.length);
+        }
+      })
+      .catch(() => {});
+  });
+}
+
+function insertAtCursor(el, text) {
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  el.value = el.value.substring(0, start) + text + el.value.substring(end);
+  el.selectionStart = el.selectionEnd = start + text.length;
+  el.focus();
+}
+
+function previewMarkdown(section) {
+  const body = document.getElementById(`body-editor-${section}`).value;
+  const preview = document.getElementById(`preview-${section}`);
+  if (!preview) return;
+  preview.classList.toggle('show');
+  if (preview.classList.contains('show')) {
+    try { preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(body) : body; } catch { preview.innerHTML = body; }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

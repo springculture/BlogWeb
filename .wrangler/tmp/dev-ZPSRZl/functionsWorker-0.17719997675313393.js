@@ -95,6 +95,10 @@ async function ensureTables(env) {
     await env.DB.exec("ALTER TABLE content ADD COLUMN permission TEXT NOT NULL DEFAULT 'guest'");
   } catch {
   }
+  try {
+    await env.DB.exec("ALTER TABLE content ADD COLUMN format TEXT NOT NULL DEFAULT 'html'");
+  } catch {
+  }
   await env.DB.exec("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
   const sections = ["personal", "movies", "books", "music", "memos", "profile", "guestbook"];
   for (const s of sections) {
@@ -164,11 +168,13 @@ async function onRequest(context) {
       const user = await getAuthUser(request, env);
       if (!user || user.role !== "admin") return errorResponse("\u65E0\u6743\u9650", 403);
       const section = path.slice(8);
-      const { title, body: contentBody, permission } = body;
+      const { title, body: contentBody, permission, format } = body;
       if (!["personal", "movies", "books", "music", "memos", "profile", "guestbook"].includes(section)) return errorResponse("\u65E0\u6548\u7684\u677F\u5757");
       if (permission && !["guest", "user", "admin"].includes(permission)) return errorResponse("\u65E0\u6548\u7684\u6743\u9650");
+      if (format && !["html", "markdown"].includes(format)) return errorResponse("\u65E0\u6548\u7684\u683C\u5F0F");
       const perm = permission || "guest";
-      await env.DB.prepare("UPDATE content SET title = ?, body = ?, updated_by = ?, updated_at = datetime('now'), permission = ? WHERE section = ?").bind(title || "", contentBody || "", user.id, perm, section).run();
+      const fmt = format || "html";
+      await env.DB.prepare("UPDATE content SET title = ?, body = ?, updated_by = ?, updated_at = datetime('now'), permission = ?, format = ? WHERE section = ?").bind(title || "", contentBody || "", user.id, perm, fmt, section).run();
       return jsonResponse({ message: "\u66F4\u65B0\u6210\u529F" });
     }
     if (path.startsWith("admin/")) {
@@ -217,6 +223,18 @@ async function onRequest(context) {
       await env.DB.prepare("INSERT INTO messages (username, content, created_at) VALUES (?, ?, datetime('now','localtime'))").bind(user.username, content.trim()).run();
       return jsonResponse({ message: "\u7559\u8A00\u6210\u529F" }, 201);
     }
+    if (path === "fetch-title" && method === "POST") {
+      const { url } = body;
+      if (!url) return errorResponse("\u7F3A\u5C11URL");
+      try {
+        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const html = await res.text();
+        const match2 = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        return jsonResponse({ title: match2 ? match2[1].trim() : url });
+      } catch {
+        return jsonResponse({ title: url });
+      }
+    }
     return errorResponse("\u672A\u627E\u5230\u8DEF\u7531", 404);
   } catch (err) {
     return errorResponse(err.message, 500);
@@ -240,12 +258,30 @@ async function onRequest2(context) {
 }
 __name(onRequest2, "onRequest2");
 __name2(onRequest2, "onRequest");
+async function ensureTables2(env) {
+  await env.DB.exec("CREATE TABLE IF NOT EXISTS content (id INTEGER PRIMARY KEY AUTOINCREMENT, section TEXT UNIQUE NOT NULL, title TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', updated_by INTEGER, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, permission TEXT NOT NULL DEFAULT 'guest', FOREIGN KEY (updated_by) REFERENCES users(id))");
+  try {
+    await env.DB.exec("ALTER TABLE content ADD COLUMN permission TEXT NOT NULL DEFAULT 'guest'");
+  } catch {
+  }
+  try {
+    await env.DB.exec("ALTER TABLE content ADD COLUMN format TEXT NOT NULL DEFAULT 'html'");
+  } catch {
+  }
+  const sections = ["personal", "movies", "books", "music", "memos", "profile", "guestbook"];
+  for (const s of sections) {
+    await env.DB.prepare("INSERT OR IGNORE INTO content (section, title, body) VALUES (?, ?, ?)").bind(s, "", "").run();
+  }
+}
+__name(ensureTables2, "ensureTables2");
+__name2(ensureTables2, "ensureTables");
 async function onRequest3(context) {
   const { request, env } = context;
   const assetResponse = await env.ASSETS.fetch(request);
   if (!assetResponse.ok) return assetResponse;
   let html = await assetResponse.text();
   try {
+    await ensureTables2(env);
     const { results } = await env.DB.prepare("SELECT * FROM content").all();
     const safe = JSON.stringify(results).replace(/<\/script>/gi, "<\\/script>");
     html = html.replace("</head>", `<script>window.__INITIAL_CONTENT__=${safe};<\/script></head>`);

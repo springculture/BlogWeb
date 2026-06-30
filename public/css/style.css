@@ -419,6 +419,46 @@ body {
   margin: 20px 0;
 }
 
+/* ===== Markdown Toggle ===== */
+.format-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-light);
+  user-select: none;
+}
+.format-toggle input { display: none; }
+.format-toggle span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--border);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-light);
+  transition: var(--transition);
+}
+.format-toggle input:checked + span { background: var(--primary); color: #fff; }
+.format-toggle:hover span { opacity: 0.8; }
+
+.markdown-preview {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--primary-bg);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.7;
+  display: none;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.markdown-preview.show { display: block; }
+
 /* ===== Scroll-to-top ===== */
 #scroll-top {
   position: fixed;

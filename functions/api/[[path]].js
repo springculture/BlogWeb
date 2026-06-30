@@ -83,6 +83,7 @@ async function ensureTables(env) {
   await env.DB.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, salt TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user', approved INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await env.DB.exec("CREATE TABLE IF NOT EXISTS content (id INTEGER PRIMARY KEY AUTOINCREMENT, section TEXT UNIQUE NOT NULL, title TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', updated_by INTEGER, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, permission TEXT NOT NULL DEFAULT 'guest', FOREIGN KEY (updated_by) REFERENCES users(id))");
   try { await env.DB.exec("ALTER TABLE content ADD COLUMN permission TEXT NOT NULL DEFAULT 'guest'"); } catch {}
+  try { await env.DB.exec("ALTER TABLE content ADD COLUMN format TEXT NOT NULL DEFAULT 'html'"); } catch {}
   await env.DB.exec("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))");
   const sections = ['personal', 'movies', 'books', 'music', 'memos', 'profile', 'guestbook'];
   for (const s of sections) {
@@ -175,12 +176,14 @@ export async function onRequest(context) {
       const user = await getAuthUser(request, env);
       if (!user || user.role !== 'admin') return errorResponse('无权限', 403);
       const section = path.slice(8);
-      const { title, body: contentBody, permission } = body;
+      const { title, body: contentBody, permission, format } = body;
       if (!['personal', 'movies', 'books', 'music', 'memos', 'profile', 'guestbook'].includes(section)) return errorResponse('无效的板块');
       if (permission && !['guest', 'user', 'admin'].includes(permission)) return errorResponse('无效的权限');
+      if (format && !['html', 'markdown'].includes(format)) return errorResponse('无效的格式');
       const perm = permission || 'guest';
-      await env.DB.prepare('UPDATE content SET title = ?, body = ?, updated_by = ?, updated_at = datetime(\'now\'), permission = ? WHERE section = ?')
-        .bind(title || '', contentBody || '', user.id, perm, section).run();
+      const fmt = format || 'html';
+      await env.DB.prepare('UPDATE content SET title = ?, body = ?, updated_by = ?, updated_at = datetime(\'now\'), permission = ?, format = ? WHERE section = ?')
+        .bind(title || '', contentBody || '', user.id, perm, fmt, section).run();
       return jsonResponse({ message: '更新成功' });
     }
 
@@ -243,6 +246,20 @@ export async function onRequest(context) {
       if (content.length > 1000) return errorResponse('内容不能超过1000字');
       await env.DB.prepare('INSERT INTO messages (username, content, created_at) VALUES (?, ?, datetime(\'now\',\'localtime\'))').bind(user.username, content.trim()).run();
       return jsonResponse({ message: '留言成功' }, 201);
+    }
+
+    // POST /api/fetch-title
+    if (path === 'fetch-title' && method === 'POST') {
+      const { url } = body;
+      if (!url) return errorResponse('缺少URL');
+      try {
+        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const html = await res.text();
+        const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        return jsonResponse({ title: match ? match[1].trim() : url });
+      } catch {
+        return jsonResponse({ title: url });
+      }
     }
 
     return errorResponse('未找到路由', 404);
