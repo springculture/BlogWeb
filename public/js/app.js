@@ -726,6 +726,22 @@ function escapeHtml(str) {
 
 // ===== Preload =====
 let preloadDone = false;
+let scrollTopTimer = null;
+
+function updateScrollTop() {
+  const btn = document.getElementById('scroll-top');
+  if (!btn) return;
+  if (window.scrollY > 200) {
+    btn.classList.add('visible');
+    clearTimeout(scrollTopTimer);
+    scrollTopTimer = setTimeout(() => btn.classList.remove('visible'), 2000);
+  } else {
+    btn.classList.remove('visible');
+    clearTimeout(scrollTopTimer);
+  }
+}
+
+window.addEventListener('scroll', updateScrollTop);
 
 function restoreContentFromCache() {
   try {
