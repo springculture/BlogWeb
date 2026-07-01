@@ -248,6 +248,18 @@ export async function onRequest(context) {
       return jsonResponse({ message: '留言成功' }, 201);
     }
 
+    // POST /api/search-douban
+    if (path === 'search-douban' && method === 'POST') {
+      const { q } = body;
+      if (!q) return errorResponse('缺少搜索关键词');
+      try {
+        const results = await searchDouban(q);
+        return jsonResponse({ results });
+      } catch {
+        return jsonResponse({ results: [] });
+      }
+    }
+
     // POST /api/fetch-cover
     if (path === 'fetch-cover' && method === 'POST') {
       const { url } = body;
@@ -269,4 +281,28 @@ export async function onRequest(context) {
   } catch (err) {
     return errorResponse(err.message, 500);
   }
+}
+
+async function searchDouban(query) {
+  const searchUrl = `https://www.douban.com/search?q=${encodeURIComponent(query)}`;
+  const res = await fetch(searchUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+    }
+  });
+  const html = await res.text();
+  const results = [];
+  const blocks = html.split('<div class="result">');
+  for (let i = 1; i < blocks.length; i++) {
+    const block = blocks[i].split('</div>')[0];
+    const urlMatch = block.match(/href="(https?:\/\/(?:movie|book)\.douban\.com\/[^"]+)"/);
+    if (!urlMatch) continue;
+    const imgMatch = block.match(/<img[^>]+src="([^"]+)"[^>]*>/);
+    const titleMatch = block.match(/<div class="title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
+    let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    results.push({ title, url: urlMatch[1], cover: imgMatch ? imgMatch[1] : '' });
+    if (results.length >= 8) break;
+  }
+  return results;
 }

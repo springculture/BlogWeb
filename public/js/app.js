@@ -282,6 +282,10 @@ document.addEventListener('click', function(e) {
   if (e.target.classList.contains('edit-btn')) {
     startEdit(e.target.dataset.section);
   }
+  // Close douban search results when clicking outside
+  if (!e.target.closest('.douban-search-results') && !e.target.closest('[onclick*="searchDoubanItem"]')) {
+    document.querySelectorAll('.douban-search-results').forEach(el => el.style.display = 'none');
+  }
 });
 
 async function saveContent(section) {
@@ -978,10 +982,12 @@ function initEditorExtras() {
           <div class="douban-editor-list" id="douban-list-${section}"><p class="empty-state" style="padding:12px">暂无项目</p></div>
           <div class="douban-form">
             <div class="douban-form-row">
-              <input type="text" class="douban-input" id="douban-title-${section}" placeholder="标题">
+              <input type="text" class="douban-input" id="douban-title-${section}" placeholder="标题（输入后点击搜索）">
+              <button class="btn btn-sm btn-primary" onclick="searchDoubanItem('${section}')" title="自动搜索豆瓣">🔍</button>
               <input type="url" class="douban-input" id="douban-url-${section}" placeholder="豆瓣链接">
               <button class="btn btn-sm btn-outline" onclick="fetchCover('${section}')" title="从豆瓣链接获取封面">🖼️</button>
             </div>
+            <div class="douban-search-results" id="douban-search-${section}" style="display:none"></div>
             <div class="douban-form-row">
               <input type="url" class="douban-input" id="douban-cover-input-${section}" placeholder="封面图片URL（手动输入）">
             </div>
@@ -1148,6 +1154,8 @@ function resetDoubanForm(section) {
   document.getElementById(`douban-cover-${section}`).style.display = 'none';
   document.getElementById(`douban-status-${section}`).value = 'wish';
   document.getElementById(`douban-review-${section}`).value = '';
+  const resultsEl = document.getElementById(`douban-search-${section}`);
+  if (resultsEl) resultsEl.style.display = 'none';
   state.doubanCurrentRating[section] = 0;
   state.doubanEditIndex[section] = -1;
   document.getElementById(`douban-add-btn-${section}`).textContent = '添加';
@@ -1233,5 +1241,65 @@ function clearCover(section) {
   document.getElementById(`douban-cover-input-${section}`).value = '';
   document.getElementById(`douban-cover-${section}`).style.display = 'none';
 }
+
+// ===== Douban Search =====
+async function searchDoubanItem(section) {
+  const title = document.getElementById(`douban-title-${section}`).value.trim();
+  if (!title) { alert('请先输入标题'); return; }
+  const container = document.getElementById(`douban-search-${section}`);
+  const btn = container && container.previousElementSibling && container.previousElementSibling.querySelector('[onclick*="searchDoubanItem"]');
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  container.innerHTML = '<div class="douban-search-status">搜索中...</div>';
+  container.style.display = 'block';
+  try {
+    const data = await api('search-douban', { method: 'POST', body: JSON.stringify({ q: title }) });
+    const results = data.results || [];
+    if (!results.length) {
+      container.innerHTML = '<div class="douban-search-status">未找到相关结果</div>';
+      return;
+    }
+    container.innerHTML = results.map((r, i) =>
+      `<div class="douban-search-item" onclick="selectDoubanResult('${section}',${i})">
+        <img src="${escapeHtml(r.cover)}" alt="" class="douban-search-thumb" onerror="this.style.display='none'">
+        <div class="douban-search-item-info">
+          <div class="douban-search-item-title">${escapeHtml(r.title)}</div>
+          <div class="douban-search-item-url">${escapeHtml(r.url)}</div>
+        </div>
+      </div>`
+    ).join('');
+    if (!state._searchResults) state._searchResults = {};
+    state._searchResults[section] = results;
+  } catch (err) {
+    container.innerHTML = '<div class="douban-search-status">搜索失败，请手动输入</div>';
+  }
+  if (btn) { btn.textContent = '🔍'; btn.disabled = false; }
+}
+
+function selectDoubanResult(section, idx) {
+  const results = (state._searchResults || {})[section];
+  if (!results || !results[idx]) return;
+  const r = results[idx];
+  document.getElementById(`douban-url-${section}`).value = r.url;
+  if (r.cover) {
+    document.getElementById(`douban-cover-input-${section}`).value = r.cover;
+    document.getElementById(`douban-cover-img-${section}`).src = r.cover;
+    document.getElementById(`douban-cover-${section}`).style.display = 'flex';
+  }
+  document.getElementById(`douban-search-${section}`).style.display = 'none';
+}
+
+// Enter key to trigger search in douban title input
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const sections = ['movies', 'books'];
+    for (const s of sections) {
+      const el = document.getElementById(`douban-title-${s}`);
+      if (el && el === document.activeElement) {
+        searchDoubanItem(s);
+        break;
+      }
+    }
+  }
+});
 
 document.addEventListener('DOMContentLoaded', init);
