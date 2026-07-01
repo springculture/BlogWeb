@@ -157,6 +157,23 @@ body {
 }
 .btn-outline:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-bg); }
 
+.btn-loading {
+  pointer-events: none;
+  position: relative;
+  color: transparent !important;
+}
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .btn-danger {
   background: #e74c3c;
   color: #fff;

@@ -50,9 +50,11 @@ async function login() {
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
+  const btn = document.querySelector('#login-form .btn-primary');
   errorEl.textContent = '';
 
   if (!username || !password) { errorEl.textContent = '请填写用户名和密码'; return; }
+  setLoading(btn, true);
 
   try {
     const data = await api('auth/login', {
@@ -67,6 +69,8 @@ async function login() {
     loadCurrentContent();
   } catch (err) {
     errorEl.textContent = err.message;
+  } finally {
+    setLoading(btn, false);
   }
 }
 
@@ -75,12 +79,14 @@ async function register() {
   const password = document.getElementById('register-password').value;
   const confirm = document.getElementById('register-confirm').value;
   const errorEl = document.getElementById('register-error');
+  const btn = document.querySelector('#register-form .btn-primary');
   errorEl.textContent = '';
 
   if (!username || !password) { errorEl.textContent = '请填写用户名和密码'; return; }
   if (username.length < 2) { errorEl.textContent = '用户名至少2个字符'; return; }
 
   if (password !== confirm) { errorEl.textContent = '两次密码输入不一致'; return; }
+  setLoading(btn, true);
 
   try {
     const data = await api('auth/register', {
@@ -97,6 +103,8 @@ async function register() {
     }
   } catch (err) {
     errorEl.textContent = err.message;
+  } finally {
+    setLoading(btn, false);
   }
 }
 
@@ -286,6 +294,8 @@ document.addEventListener('click', function(e) {
 
 async function saveContent(section) {
   let title, body, permission, format;
+  const btn = document.querySelector(`#editor-${section} .btn-primary`);
+  setLoading(btn, true);
 
   if (section === 'movies' || section === 'books') {
     title = document.getElementById(`title-${section}`).value.trim();
@@ -309,6 +319,8 @@ async function saveContent(section) {
     displayContent(section, { title, body, permission, format });
   } catch (err) {
     alert('保存失败: ' + err.message);
+  } finally {
+    setLoading(btn, false);
   }
 }
 
@@ -781,6 +793,30 @@ function updateUI() {
 }
 
 // ===== Utils =====
+function setLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) { btn.classList.add('btn-loading'); btn.disabled = true; }
+  else { btn.classList.remove('btn-loading'); btn.disabled = false; }
+}
+
+function resizeImage(file, maxW, maxH, quality, cb) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      let { width, height } = img;
+      if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; }
+      if (height > maxH) { width = Math.round(width * maxH / height); height = maxH; }
+      const c = document.createElement('canvas');
+      c.width = width; c.height = height;
+      c.getContext('2d').drawImage(img, 0, 0, width, height);
+      cb(c.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -1025,14 +1061,12 @@ function initEditorExtras() {
             e.preventDefault();
             const file = items[i].getAsFile();
             if (!file) break;
-            if (file.size > 2 * 1024 * 1024) { alert('图片不能超过 2MB'); break; }
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-              coverInput.value = ev.target.result;
-              document.getElementById(`douban-cover-img-${section}`).src = ev.target.result;
+            if (file.size > 5 * 1024 * 1024) { alert('图片不能超过 5MB'); break; }
+            resizeImage(file, 400, 600, 0.8, function(dataUrl) {
+              coverInput.value = dataUrl;
+              document.getElementById(`douban-cover-img-${section}`).src = dataUrl;
               document.getElementById(`douban-cover-${section}`).style.display = 'flex';
-            };
-            reader.readAsDataURL(file);
+            });
             break;
           }
         }
