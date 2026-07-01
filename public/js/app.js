@@ -1281,8 +1281,9 @@ function clearCover(section) {
 // ===== Douban Search =====
 function searchDoubanItem(section) {
   const title = document.getElementById(`douban-title-${section}`).value.trim();
-  if (!title) { alert('请先输入电影名称'); return; }
-  window.open(`https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(title)}`, '_blank');
+  if (!title) { alert('请先输入名称'); return; }
+  const base = section === 'books' ? 'https://search.douban.com/book/subject_search' : 'https://search.douban.com/movie/subject_search';
+  window.open(`${base}?search_text=${encodeURIComponent(title)}`, '_blank');
 }
 
 document.addEventListener('DOMContentLoaded', init);
