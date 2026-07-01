@@ -285,44 +285,41 @@ export async function onRequest(context) {
 
 async function searchDouban(query) {
   const results = [];
-  // Try multiple search engines in order until we get results
-  const engines = [
-    // DuckDuckGo HTML search
-    async () => {
-      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' 豆瓣')}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-      });
-      const html = await res.text();
-      const blocks = html.split('<div class="result__body">');
-      for (let i = 1; i < blocks.length; i++) {
-        const urlMatch = blocks[i].match(/uddg=([^&]+)/);
-        if (!urlMatch) continue;
-        const url = decodeURIComponent(urlMatch[1]);
-        if (!url.includes('movie.douban.com/subject') && !url.includes('book.douban.com/subject')) continue;
-        const titleMatch = blocks[i].match(/<a[^>]+class="result__a"[^>]*>([\s\S]*?)<\/a>/);
-        const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
-        results.push({ title, url, cover: '' });
-        if (results.length >= 8) return;
-      }
-    },
-    // Bing search fallback
-    async () => {
-      if (results.length > 0) return;
-      const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query + ' 豆瓣')}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-      });
-      const html = await res.text();
-      const blocks = html.split('<li class="b_algo">');
-      for (let i = 1; i < blocks.length; i++) {
-        const urlMatch = blocks[i].match(/href="(https?:\/\/(?:movie|book)\.douban\.com\/[^"]+)"/);
-        if (!urlMatch) continue;
-        const titleMatch = blocks[i].match(/<h2>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
-        const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
-        results.push({ title, url: urlMatch[1], cover: '' });
-        if (results.length >= 8) return;
-      }
-    }
+  const seen = new Set();
+  const sites = [
+    { domain: 'zh.wikipedia.org', suffix: ' 电影' },
+    { domain: 'en.wikipedia.org', suffix: ' film' },
   ];
-  for (const engine of engines) await engine();
+  for (const site of sites) {
+    if (results.length >= 5) break;
+    try {
+      // Step 1: Search Wikipedia for matching pages
+      const sRes = await fetch(
+        `https://${site.domain}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query + site.suffix)}&format=json&srlimit=5&utf8=1`,
+        { headers: { 'User-Agent': 'BlogWeb/1.0' } }
+      );
+      const sData = await sRes.json();
+      const pages = sData?.query?.search || [];
+      if (!pages.length) continue;
+      // Step 2: Get external links for all found pages at once
+      const eRes = await fetch(
+        `https://${site.domain}/w/api.php?action=query&prop=extlinks&titles=${pages.map(p => p.title).join('|')}&format=json&utf8=1`,
+        { headers: { 'User-Agent': 'BlogWeb/1.0' } }
+      );
+      const eData = await eRes.json();
+      const pageMap = eData?.query?.pages || {};
+      for (const page of Object.values(pageMap)) {
+        if (!page || !page.extlinks || results.length >= 5) continue;
+        for (const link of page.extlinks) {
+          const url = link['*'];
+          if ((url.includes('movie.douban.com/subject') || url.includes('book.douban.com/subject')) && !seen.has(url)) {
+            seen.add(url);
+            results.push({ title: page.title, url, cover: '' });
+            break;
+          }
+        }
+      }
+    } catch {}
+  }
   return results;
 }
