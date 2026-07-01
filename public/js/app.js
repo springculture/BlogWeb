@@ -1063,7 +1063,7 @@ function initEditorExtras() {
             const file = items[i].getAsFile();
             if (!file) break;
             if (file.size > 5 * 1024 * 1024) { alert('图片不能超过 5MB'); break; }
-            resizeImage(file, 400, 600, 0.8, function(dataUrl) {
+            resizeImage(file, 200, 300, 0.7, function(dataUrl) {
               coverInput.value = dataUrl;
               document.getElementById(`douban-cover-img-${section}`).src = dataUrl;
               document.getElementById(`douban-cover-${section}`).style.display = 'flex';
