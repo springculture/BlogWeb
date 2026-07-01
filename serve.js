@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 
 const PUBLIC = path.join(__dirname, 'public');
 const PORT = process.argv[2] || 3000;
@@ -17,10 +18,11 @@ const MIME = {
 };
 
 http.createServer((req, res) => {
-  let filePath = path.join(PUBLIC, req.url === '/' ? 'index.html' : req.url);
+  const parsed = url.parse(req.url);
+  let filePath = path.join(PUBLIC, parsed.pathname === '/' ? 'index.html' : parsed.pathname);
   filePath = path.normalize(filePath);
   if (!filePath.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
-  
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404);

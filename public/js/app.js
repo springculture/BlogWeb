@@ -1249,6 +1249,7 @@ async function searchDoubanItem(section) {
   const container = document.getElementById(`douban-search-${section}`);
   const btn = container && container.previousElementSibling && container.previousElementSibling.querySelector('[onclick*="searchDoubanItem"]');
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  if (!container) { if (btn) { btn.textContent = '🔍'; btn.disabled = false; } return; }
   container.innerHTML = '<div class="douban-search-status">搜索中...</div>';
   container.style.display = 'block';
   try {
@@ -1271,8 +1272,9 @@ async function searchDoubanItem(section) {
     state._searchResults[section] = results;
   } catch (err) {
     container.innerHTML = '<div class="douban-search-status">搜索失败，请手动输入</div>';
+  } finally {
+    if (btn) { btn.textContent = '🔍'; btn.disabled = false; }
   }
-  if (btn) { btn.textContent = '🔍'; btn.disabled = false; }
 }
 
 function selectDoubanResult(section, idx) {
