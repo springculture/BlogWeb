@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>我的博客</title>
-  <link rel="stylesheet" href="/css/style.css?v=12">
+  <link rel="stylesheet" href="/css/style.css?v=14">
 </head>
 <body>
   <div id="app">
@@ -354,7 +354,17 @@
   </div>
 
 <button id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="回到顶部">↑</button>
+
+<div id="loading-overlay" style="display:none">
+  <div class="loading-ring" id="loading-ring">
+    <div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>
+    <div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>
+    <div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>
+    <div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>
+  </div>
+</div>
+
 <script src="/js/lib/marked.min.js"></script>
-<script src="/js/app.js?v=12"></script>
+<script src="/js/app.js?v=14"></script>
 </body>
 </html>

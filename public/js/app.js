@@ -50,11 +50,10 @@ async function login() {
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
-  const btn = document.querySelector('#login-form .btn-primary');
   errorEl.textContent = '';
 
   if (!username || !password) { errorEl.textContent = '请填写用户名和密码'; return; }
-  setLoading(btn, true);
+  showLoading();
 
   try {
     const data = await api('auth/login', {
@@ -70,7 +69,7 @@ async function login() {
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {
-    setLoading(btn, false);
+    hideLoading();
   }
 }
 
@@ -79,14 +78,13 @@ async function register() {
   const password = document.getElementById('register-password').value;
   const confirm = document.getElementById('register-confirm').value;
   const errorEl = document.getElementById('register-error');
-  const btn = document.querySelector('#register-form .btn-primary');
   errorEl.textContent = '';
 
   if (!username || !password) { errorEl.textContent = '请填写用户名和密码'; return; }
   if (username.length < 2) { errorEl.textContent = '用户名至少2个字符'; return; }
 
   if (password !== confirm) { errorEl.textContent = '两次密码输入不一致'; return; }
-  setLoading(btn, true);
+  showLoading();
 
   try {
     const data = await api('auth/register', {
@@ -104,7 +102,7 @@ async function register() {
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {
-    setLoading(btn, false);
+    hideLoading();
   }
 }
 
@@ -294,8 +292,7 @@ document.addEventListener('click', function(e) {
 
 async function saveContent(section) {
   let title, body, permission, format;
-  const btn = document.querySelector(`#editor-${section} .btn-primary`);
-  setLoading(btn, true);
+  showLoading();
 
   if (section === 'movies' || section === 'books') {
     title = document.getElementById(`title-${section}`).value.trim();
@@ -320,7 +317,7 @@ async function saveContent(section) {
   } catch (err) {
     alert('保存失败: ' + err.message);
   } finally {
-    setLoading(btn, false);
+    hideLoading();
   }
 }
 
@@ -672,6 +669,7 @@ async function saveProfile() {
   const nickname = document.getElementById('edit-nickname').value.trim();
   const signature = document.getElementById('edit-signature').value.trim();
   const body = JSON.stringify({ avatar, nickname, signature });
+  showLoading();
   try {
     await api('content/profile', {
       method: 'PUT',
@@ -685,6 +683,8 @@ async function saveProfile() {
     cancelProfileEdit();
   } catch (err) {
     alert('保存失败: ' + err.message);
+  } finally {
+    hideLoading();
   }
 }
 
@@ -793,10 +793,11 @@ function updateUI() {
 }
 
 // ===== Utils =====
-function setLoading(btn, loading) {
-  if (!btn) return;
-  if (loading) { btn.classList.add('btn-loading'); btn.disabled = true; }
-  else { btn.classList.remove('btn-loading'); btn.disabled = false; }
+function showLoading() {
+  document.getElementById('loading-overlay').style.display = 'flex';
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').style.display = 'none';
 }
 
 function resizeImage(file, maxW, maxH, quality, cb) {
