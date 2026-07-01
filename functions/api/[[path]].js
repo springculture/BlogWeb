@@ -284,20 +284,44 @@ export async function onRequest(context) {
 }
 
 async function searchDouban(query) {
-  const searchUrl = `https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(query)}`;
-  const res = await fetch(searchUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-    }
-  });
-  const html = await res.text();
   const results = [];
-  const regex = /<a\s+href="(https:\/\/movie\.douban\.com\/subject\/\d+\/)"[^>]*class="cover-link"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*class="cover"[^>]*alt="([^"]*)"[\s\S]*?<\/a>/g;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    results.push({ title: match[3].trim(), url: match[1], cover: match[2] });
-    if (results.length >= 5) break;
+  // 1. Try scraping the Douban movie search page
+  try {
+    const searchUrl = `https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(query)}`;
+    const res = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Referer': 'https://search.douban.com/',
+      }
+    });
+    const html = await res.text();
+    const regex = /<a\s+href="(https:\/\/movie\.douban\.com\/subject\/\d+\/)"[^>]*class="cover-link"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*class="cover"[^>]*alt="([^"]*)"[\s\S]*?<\/a>/g;
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      results.push({ title: match[3].trim(), url: match[1], cover: match[2] });
+      if (results.length >= 5) break;
+    }
+  } catch {}
+  // 2. Fallback: try Douban's Frodo mobile API
+  if (results.length === 0) {
+    try {
+      const apiRes = await fetch(
+        `https://frodo.douban.com/api/v2/movie/search?q=${encodeURIComponent(query)}&apikey=0ab215a8b1977939201640b6e66c8a35`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36', 'Accept': 'application/json' } }
+      );
+      const data = await apiRes.json();
+      const items = data?.items || [];
+      for (const item of items) {
+        if (!item || !item.id) continue;
+        results.push({
+          title: item.title || '',
+          url: `https://movie.douban.com/subject/${item.id}/`,
+          cover: item.cover_url || item.img || '',
+        });
+        if (results.length >= 5) break;
+      }
+    } catch {}
   }
   return results;
 }
