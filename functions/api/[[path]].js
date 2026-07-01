@@ -284,25 +284,45 @@ export async function onRequest(context) {
 }
 
 async function searchDouban(query) {
-  const searchUrl = `https://www.douban.com/search?q=${encodeURIComponent(query)}`;
-  const res = await fetch(searchUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-    }
-  });
-  const html = await res.text();
   const results = [];
-  const blocks = html.split('<div class="result">');
-  for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i].split('</div>')[0];
-    const urlMatch = block.match(/href="(https?:\/\/(?:movie|book)\.douban\.com\/[^"]+)"/);
-    if (!urlMatch) continue;
-    const imgMatch = block.match(/<img[^>]+src="([^"]+)"[^>]*>/);
-    const titleMatch = block.match(/<div class="title">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
-    let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
-    results.push({ title, url: urlMatch[1], cover: imgMatch ? imgMatch[1] : '' });
-    if (results.length >= 8) break;
-  }
+  // Try multiple search engines in order until we get results
+  const engines = [
+    // DuckDuckGo HTML search
+    async () => {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + ' 豆瓣')}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      const html = await res.text();
+      const blocks = html.split('<div class="result__body">');
+      for (let i = 1; i < blocks.length; i++) {
+        const urlMatch = blocks[i].match(/uddg=([^&]+)/);
+        if (!urlMatch) continue;
+        const url = decodeURIComponent(urlMatch[1]);
+        if (!url.includes('movie.douban.com/subject') && !url.includes('book.douban.com/subject')) continue;
+        const titleMatch = blocks[i].match(/<a[^>]+class="result__a"[^>]*>([\s\S]*?)<\/a>/);
+        const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+        results.push({ title, url, cover: '' });
+        if (results.length >= 8) return;
+      }
+    },
+    // Bing search fallback
+    async () => {
+      if (results.length > 0) return;
+      const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query + ' 豆瓣')}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      const html = await res.text();
+      const blocks = html.split('<li class="b_algo">');
+      for (let i = 1; i < blocks.length; i++) {
+        const urlMatch = blocks[i].match(/href="(https?:\/\/(?:movie|book)\.douban\.com\/[^"]+)"/);
+        if (!urlMatch) continue;
+        const titleMatch = blocks[i].match(/<h2>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
+        const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+        results.push({ title, url: urlMatch[1], cover: '' });
+        if (results.length >= 8) return;
+      }
+    }
+  ];
+  for (const engine of engines) await engine();
   return results;
 }

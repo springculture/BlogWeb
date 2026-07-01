@@ -1260,7 +1260,7 @@ async function searchDoubanItem(section) {
     }
     container.innerHTML = results.map((r, i) =>
       `<div class="douban-search-item" onclick="selectDoubanResult('${section}',${i})">
-        <img src="${escapeHtml(r.cover)}" alt="" class="douban-search-thumb" onerror="this.style.display='none'">
+        ${r.cover ? `<img src="${escapeHtml(r.cover)}" alt="" class="douban-search-thumb">` : ''}
         <div class="douban-search-item-info">
           <div class="douban-search-item-title">${escapeHtml(r.title)}</div>
           <div class="douban-search-item-url">${escapeHtml(r.url)}</div>
@@ -1280,12 +1280,9 @@ function selectDoubanResult(section, idx) {
   if (!results || !results[idx]) return;
   const r = results[idx];
   document.getElementById(`douban-url-${section}`).value = r.url;
-  if (r.cover) {
-    document.getElementById(`douban-cover-input-${section}`).value = r.cover;
-    document.getElementById(`douban-cover-img-${section}`).src = r.cover;
-    document.getElementById(`douban-cover-${section}`).style.display = 'flex';
-  }
   document.getElementById(`douban-search-${section}`).style.display = 'none';
+  // Auto-fetch cover from the selected Douban URL
+  setTimeout(() => fetchCover(section), 100);
 }
 
 // Enter key to trigger search in douban title input

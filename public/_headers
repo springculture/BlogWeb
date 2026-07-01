@@ -1,0 +1,14 @@
+/*
+  Cache-Control: no-cache
+
+*.css
+  Cache-Control: no-cache
+
+*.js
+  Cache-Control: no-cache
+
+*.jpg
+  Cache-Control: public, max-age=86400
+
+*.png
+  Cache-Control: public, max-age=86400
