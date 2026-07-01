@@ -981,13 +981,13 @@ function initEditorExtras() {
               <input type="text" class="douban-input" id="douban-title-${section}" placeholder="标题（输入后点🔍去豆瓣搜索）">
               <button class="btn btn-sm btn-primary" onclick="searchDoubanItem('${section}')" title="在豆瓣中搜索">🔍</button>
               <input type="url" class="douban-input" id="douban-url-${section}" placeholder="豆瓣链接">
-              <button class="btn btn-sm btn-outline" onclick="fetchCover('${section}')" title="从豆瓣链接获取封面">🖼️</button>
+              <button class="btn btn-sm btn-outline" onclick="fetchCover('${section}')" title="从豆瓣页面提取封面">🖼️</button>
             </div>
             <div class="douban-form-row">
               <input type="url" class="douban-input" id="douban-cover-input-${section}" placeholder="封面图片URL（手动输入）">
             </div>
             <div class="douban-cover-preview" id="douban-cover-${section}" style="display:none">
-              <img src="" alt="封面预览" id="douban-cover-img-${section}">
+              <img src="" alt="封面预览" id="douban-cover-img-${section}" referrerpolicy="no-referrer">
               <button class="btn btn-sm btn-outline" onclick="clearCover('${section}')">✕ 移除</button>
             </div>
             <div class="douban-form-row">
@@ -1007,6 +1007,16 @@ function initEditorExtras() {
           </div>
         </div>`;
       textarea.insertAdjacentHTML('afterend', doubanHTML);
+      // Auto-show cover preview when user pastes a URL
+      document.getElementById(`douban-cover-input-${section}`).addEventListener('input', function() {
+        const val = this.value.trim();
+        if (val) {
+          document.getElementById(`douban-cover-img-${section}`).src = val;
+          document.getElementById(`douban-cover-${section}`).style.display = 'flex';
+        } else {
+          document.getElementById(`douban-cover-${section}`).style.display = 'none';
+        }
+      });
     }
   }
 }
@@ -1083,7 +1093,7 @@ function renderDoubanCard(item) {
   const stars = '★'.repeat(Math.min(Math.max(item.rating || 0, 0), 5));
   const empty = '☆'.repeat(5 - stars.length);
   const review = item.review ? `<p class="douban-review">${escapeHtml(item.review)}</p>` : '';
-  const coverHTML = cover ? `<div class="douban-cover"><img src="${escapeHtml(cover)}" alt="${title}" loading="lazy"></div>` : '';
+  const coverHTML = cover ? `<div class="douban-cover"><img src="${escapeHtml(cover)}" alt="${title}" loading="lazy" referrerpolicy="no-referrer"></div>` : '';
   return `<div class="douban-card">${coverHTML}<div class="douban-card-body"><div class="douban-card-title">${titleHTML}</div><div class="douban-stars">${stars}${empty}</div>${review}</div></div>`;
 }
 
@@ -1128,7 +1138,7 @@ function renderDoubanItemList(section) {
   }
   list.innerHTML = items.map((item, idx) => `
     <div class="douban-editor-item">
-      ${item.cover ? `<img src="${escapeHtml(item.cover)}" class="douban-editor-thumb" alt="">` : ''}
+      ${item.cover ? `<img src="${escapeHtml(item.cover)}" class="douban-editor-thumb" alt="" referrerpolicy="no-referrer">` : ''}
       <div class="douban-editor-item-info">
         <strong>${escapeHtml(item.title || '未命名')}</strong>
         ${item.url ? ` <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="douban-link">🔗</a>` : ''}
@@ -1212,8 +1222,7 @@ async function fetchCover(section) {
   const url = document.getElementById(`douban-url-${section}`).value.trim();
   if (!url) { alert('请先输入豆瓣链接'); return; }
   const btn = document.querySelector(`#douban-editor-${section} [onclick*="fetchCover"]`);
-  btn.textContent = '⏳';
-  btn.disabled = true;
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
   try {
     const data = await api('fetch-cover', { method: 'POST', body: JSON.stringify({ url }) });
     if (data.cover) {
@@ -1226,8 +1235,7 @@ async function fetchCover(section) {
   } catch (err) {
     alert('获取失败，请手动输入封面图片URL');
   }
-  btn.textContent = '🖼️';
-  btn.disabled = false;
+  if (btn) { btn.textContent = '🖼️'; btn.disabled = false; }
 }
 
 function clearCover(section) {

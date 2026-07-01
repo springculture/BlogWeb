@@ -248,7 +248,6 @@ export async function onRequest(context) {
       return jsonResponse({ message: '留言成功' }, 201);
     }
 
-
     // POST /api/fetch-cover
     if (path === 'fetch-cover' && method === 'POST') {
       const { url } = body;
