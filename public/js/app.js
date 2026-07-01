@@ -7,7 +7,10 @@ let state = {
   token: localStorage.getItem('token') || null,
   currentSection: 'personal',
   contentCache: {},
-  profileCache: {}
+  profileCache: {},
+  doubanItems: {},
+  doubanCurrentRating: {},
+  doubanEditIndex: {}
 };
 
 async function api(path, options = {}) {
@@ -209,6 +212,21 @@ function displayContent(section, data) {
   const editorEl = document.getElementById(`editor-${section}`);
   const permBadge = document.getElementById(`perm-${section}`);
 
+  // Douban-style display for movies/books
+  if ((section === 'movies' || section === 'books') && data.body) {
+    try {
+      const items = JSON.parse(data.body);
+      if (Array.isArray(items)) {
+        renderDoubanDisplay(bodyEl, section, items, data.title);
+        bodyEl.style.display = 'block';
+        if (editorEl) editorEl.style.display = 'none';
+        if (permBadge) { permBadge.className = 'perm-badge ' + (data.permission || 'guest'); }
+        updateTabVisibility(section, data.permission || 'guest');
+        return;
+      }
+    } catch {}
+  }
+
   const body = data.body || '';
   const format = data.format || 'html';
   let contentHTML = body;
@@ -244,6 +262,10 @@ function updateTabVisibility(section, permission) {
 }
 
 function startEdit(section) {
+  if (section === 'movies' || section === 'books') {
+    startDoubanEdit(section);
+    return;
+  }
   const data = state.contentCache[section] || {};
   document.getElementById(`title-${section}`).value = data.title || '';
   document.getElementById(`body-editor-${section}`).value = data.body || '';
@@ -263,11 +285,20 @@ document.addEventListener('click', function(e) {
 });
 
 async function saveContent(section) {
-  const title = document.getElementById(`title-${section}`).value.trim();
-  const body = document.getElementById(`body-editor-${section}`).value;
-  const permission = document.getElementById(`perm-select-${section}`).value;
-  const fmtToggle = document.getElementById(`format-toggle-${section}`);
-  const format = (fmtToggle && fmtToggle.checked) ? 'markdown' : 'html';
+  let title, body, permission, format;
+
+  if (section === 'movies' || section === 'books') {
+    title = document.getElementById(`title-${section}`).value.trim();
+    body = JSON.stringify(state.doubanItems[section] || []);
+    permission = document.getElementById(`perm-select-${section}`).value;
+    format = 'html';
+  } else {
+    title = document.getElementById(`title-${section}`).value.trim();
+    body = document.getElementById(`body-editor-${section}`).value;
+    permission = document.getElementById(`perm-select-${section}`).value;
+    const fmtToggle = document.getElementById(`format-toggle-${section}`);
+    format = (fmtToggle && fmtToggle.checked) ? 'markdown' : 'html';
+  }
 
   try {
     await api(`content/${section}`, {
@@ -915,61 +946,52 @@ function initEditorExtras() {
     const actions = document.querySelector(`#editor-${section} .editor-actions`);
     if (!actions) continue;
 
-    // Preview button
-    const previewBtn = document.createElement('button');
-    previewBtn.className = 'btn btn-sm btn-outline';
-    previewBtn.textContent = '预览';
-    previewBtn.onclick = () => previewMarkdown(section);
-    previewBtn.style.marginLeft = 'auto';
-    actions.appendChild(previewBtn);
+    // Preview button (for non-movies/books)
+    if (section !== 'movies' && section !== 'books') {
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'btn btn-sm btn-outline';
+      previewBtn.textContent = '预览';
+      previewBtn.onclick = () => previewMarkdown(section);
+      previewBtn.style.marginLeft = 'auto';
+      actions.appendChild(previewBtn);
 
-    // Preview container after textarea
-    const textarea = document.getElementById(`body-editor-${section}`);
-    const preview = document.createElement('div');
-    preview.className = 'markdown-preview';
-    preview.id = `preview-${section}`;
-    textarea.parentNode.insertBefore(preview, textarea.nextSibling);
+      const textarea = document.getElementById(`body-editor-${section}`);
+      const preview = document.createElement('div');
+      preview.className = 'markdown-preview';
+      preview.id = `preview-${section}`;
+      textarea.parentNode.insertBefore(preview, textarea.nextSibling);
+    }
+
+    // Douban editor form for movies/books
+    if (section === 'movies' || section === 'books') {
+      const textarea = document.getElementById(`body-editor-${section}`);
+      const doubanHTML = `
+        <div class="douban-editor" id="douban-editor-${section}" style="display:none">
+          <div class="douban-editor-list" id="douban-list-${section}"><p class="empty-state" style="padding:12px">暂无项目</p></div>
+          <div class="douban-form">
+            <div class="douban-form-row">
+              <input type="text" class="douban-input" id="douban-title-${section}" placeholder="标题">
+              <input type="url" class="douban-input" id="douban-url-${section}" placeholder="豆瓣链接（选填）">
+            </div>
+            <div class="douban-form-row">
+              <select class="douban-select" id="douban-status-${section}">
+                <option value="wish">想看</option>
+                <option value="watching">在看</option>
+                <option value="watched">已看</option>
+              </select>
+              <div class="douban-star-select" id="douban-rating-${section}">
+                ${[1,2,3,4,5].map(i => `<span data-rating="${i}" onclick="setDoubanRating('${section}',${i})">☆</span>`).join('')}
+              </div>
+            </div>
+            <textarea class="douban-review" id="douban-review-${section}" rows="2" placeholder="我的评价..."></textarea>
+            <div class="douban-form-actions">
+              <button class="btn btn-primary btn-sm" onclick="addDoubanItem('${section}')" id="douban-add-btn-${section}">添加</button>
+            </div>
+          </div>
+        </div>`;
+      textarea.insertAdjacentHTML('afterend', doubanHTML);
+    }
   }
-
-  // Paste handler: auto-link URLs
-  document.addEventListener('paste', e => {
-    const textarea = e.target.closest('.editor-body');
-    if (!textarea) return;
-    const section = textarea.id.replace('body-editor-', '');
-    const fmtToggle = document.getElementById(`format-toggle-${section}`);
-    if (!fmtToggle || !fmtToggle.checked) return;
-
-    const pasted = (e.clipboardData || window.clipboardData).getData('text');
-    if (!pasted || !/^https?:\/\/\S+$/i.test(pasted.trim())) return;
-
-    e.preventDefault();
-    const url = pasted.trim();
-
-    // Insert [url](url) temporarily, then try to fetch title
-    insertAtCursor(textarea, `[${url}](${url})`);
-
-    // Silently fetch title and update
-    api('fetch-title', { method: 'POST', body: JSON.stringify({ url }) })
-      .then(data => {
-        const title = data.title || url;
-        const md = `[${title}](${url})`;
-        // Replace the first occurrence of the link in textarea
-        const cur = textarea.value;
-        const idx = cur.indexOf(`[${url}](${url})`);
-        if (idx !== -1) {
-          textarea.value = cur.substring(0, idx) + md + cur.substring(idx + `[${url}](${url})`.length);
-        }
-      })
-      .catch(() => {});
-  });
-}
-
-function insertAtCursor(el, text) {
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  el.value = el.value.substring(0, start) + text + el.value.substring(end);
-  el.selectionStart = el.selectionEnd = start + text.length;
-  el.focus();
 }
 
 function previewMarkdown(section) {
@@ -980,6 +1002,157 @@ function previewMarkdown(section) {
   if (preview.classList.contains('show')) {
     try { preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(body) : body; } catch { preview.innerHTML = body; }
   }
+}
+
+// ===== Douban-style movies/books =====
+const STATUS_LABEL = { wish: '想看', watching: '在看', watched: '已看' };
+const STATUS_ICON = { wish: '⏳', watching: '📖', watched: '✅' };
+
+function renderDoubanDisplay(container, section, items, sectionTitle) {
+  let html = '';
+  if (sectionTitle) html += `<h1>${escapeHtml(sectionTitle)}</h1><hr>`;
+  if (!items || !items.length) {
+    html += '<div class="empty-state"><p>暂无内容</p></div>';
+    container.innerHTML = html;
+    return;
+  }
+
+  const counts = { wish: 0, watching: 0, watched: 0 };
+  for (const item of items) counts[item.status] = (counts[item.status] || 0) + 1;
+
+  html += `<div class="douban-tabs">`;
+  for (const s of ['wish', 'watching', 'watched']) {
+    html += `<button class="douban-tab${s === 'wish' ? ' active' : ''}" onclick="switchDoubanTab('${section}','${s}')">${STATUS_ICON[s]} ${STATUS_LABEL[s]} <span class="douban-count">${counts[s] || 0}</span></button>`;
+  }
+  html += `</div>`;
+  html += `<div class="douban-grid" id="douban-grid-${section}">`;
+  for (const item of items) {
+    if (item.status === 'wish') html += renderDoubanCard(item);
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function renderDoubanCard(item) {
+  const title = escapeHtml(item.title || '未命名');
+  const url = item.url || '';
+  const titleHTML = url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="douban-link">${title} 🔗</a>`
+    : `<span class="douban-title">${title}</span>`;
+  const stars = '★'.repeat(Math.min(Math.max(item.rating || 0, 0), 5));
+  const empty = '☆'.repeat(5 - stars.length);
+  const review = item.review ? `<p class="douban-review">${escapeHtml(item.review)}</p>` : '';
+  return `<div class="douban-card"><div class="douban-card-title">${titleHTML}</div><div class="douban-stars">${stars}${empty}</div>${review}</div>`;
+}
+
+function switchDoubanTab(section, status) {
+  const tabs = document.querySelectorAll(`#section-${section} .douban-tab`);
+  tabs.forEach(t => t.classList.toggle('active', t.textContent.includes(STATUS_LABEL[status])));
+  const grid = document.getElementById(`douban-grid-${section}`);
+  if (!grid) return;
+  try {
+    const items = JSON.parse((state.contentCache[section] || {}).body || '[]');
+    if (!Array.isArray(items)) return;
+    grid.innerHTML = items.filter(i => i.status === status).map(renderDoubanCard).join('');
+  } catch {}
+}
+
+function startDoubanEdit(section) {
+  const data = state.contentCache[section] || {};
+  state.doubanItems[section] = [];
+  try {
+    const parsed = JSON.parse(data.body || '[]');
+    if (Array.isArray(parsed)) state.doubanItems[section] = parsed;
+  } catch {}
+  state.doubanCurrentRating[section] = 0;
+  state.doubanEditIndex[section] = -1;
+
+  document.getElementById(`title-${section}`).value = data.title || '';
+  document.getElementById(`body-${section}`).style.display = 'none';
+  document.getElementById(`editor-${section}`).style.display = 'block';
+  document.getElementById(`body-editor-${section}`).style.display = 'none';
+  document.getElementById(`douban-editor-${section}`).style.display = 'block';
+  renderDoubanItemList(section);
+  resetDoubanForm(section);
+}
+
+function renderDoubanItemList(section) {
+  const list = document.getElementById(`douban-list-${section}`);
+  if (!list) return;
+  const items = state.doubanItems[section] || [];
+  if (!items.length) {
+    list.innerHTML = '<p class="empty-state" style="padding:12px">暂无项目</p>';
+    return;
+  }
+  list.innerHTML = items.map((item, idx) => `
+    <div class="douban-editor-item">
+      <div class="douban-editor-item-info">
+        <strong>${escapeHtml(item.title || '未命名')}</strong>
+        ${item.url ? ` <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" class="douban-link">🔗</a>` : ''}
+        <span class="douban-editor-badge">${STATUS_LABEL[item.status]}</span>
+        <span>${'★'.repeat(Math.min(Math.max(item.rating||0,0),5))}${'☆'.repeat(5-Math.min(Math.max(item.rating||0,0),5))}</span>
+      </div>
+      <div class="douban-editor-item-actions">
+        <button class="btn btn-sm btn-outline" onclick="editDoubanItem('${section}',${idx})">编辑</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteDoubanItem('${section}',${idx})">删除</button>
+      </div>
+    </div>`).join('');
+}
+
+function resetDoubanForm(section) {
+  document.getElementById(`douban-title-${section}`).value = '';
+  document.getElementById(`douban-url-${section}`).value = '';
+  document.getElementById(`douban-status-${section}`).value = 'wish';
+  document.getElementById(`douban-review-${section}`).value = '';
+  state.doubanCurrentRating[section] = 0;
+  state.doubanEditIndex[section] = -1;
+  document.getElementById(`douban-add-btn-${section}`).textContent = '添加';
+  const stars = document.querySelectorAll(`#douban-rating-${section} span`);
+  stars.forEach(s => s.textContent = '☆');
+}
+
+function setDoubanRating(section, rating) {
+  state.doubanCurrentRating[section] = rating;
+  const stars = document.querySelectorAll(`#douban-rating-${section} span`);
+  stars.forEach((s, i) => { s.textContent = i < rating ? '★' : '☆'; });
+}
+
+function addDoubanItem(section) {
+  const title = document.getElementById(`douban-title-${section}`).value.trim();
+  if (!title) { alert('请输入标题'); return; }
+  const item = {
+    title,
+    url: document.getElementById(`douban-url-${section}`).value.trim(),
+    status: document.getElementById(`douban-status-${section}`).value,
+    rating: state.doubanCurrentRating[section] || 0,
+    review: document.getElementById(`douban-review-${section}`).value.trim()
+  };
+  const editIdx = state.doubanEditIndex[section];
+  if (editIdx >= 0 && editIdx < state.doubanItems[section].length) {
+    state.doubanItems[section][editIdx] = item;
+  } else {
+    state.doubanItems[section].push(item);
+  }
+  renderDoubanItemList(section);
+  resetDoubanForm(section);
+}
+
+function editDoubanItem(section, idx) {
+  const item = state.doubanItems[section][idx];
+  if (!item) return;
+  document.getElementById(`douban-title-${section}`).value = item.title || '';
+  document.getElementById(`douban-url-${section}`).value = item.url || '';
+  document.getElementById(`douban-status-${section}`).value = item.status || 'wish';
+  document.getElementById(`douban-review-${section}`).value = item.review || '';
+  state.doubanCurrentRating[section] = item.rating || 0;
+  state.doubanEditIndex[section] = idx;
+  document.getElementById(`douban-add-btn-${section}`).textContent = '保存修改';
+  setDoubanRating(section, item.rating || 0);
+}
+
+function deleteDoubanItem(section, idx) {
+  state.doubanItems[section].splice(idx, 1);
+  renderDoubanItemList(section);
 }
 
 document.addEventListener('DOMContentLoaded', init);

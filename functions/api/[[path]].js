@@ -248,20 +248,6 @@ export async function onRequest(context) {
       return jsonResponse({ message: '留言成功' }, 201);
     }
 
-    // POST /api/fetch-title
-    if (path === 'fetch-title' && method === 'POST') {
-      const { url } = body;
-      if (!url) return errorResponse('缺少URL');
-      try {
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const html = await res.text();
-        const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        return jsonResponse({ title: match ? match[1].trim() : url });
-      } catch {
-        return jsonResponse({ title: url });
-      }
-    }
-
     return errorResponse('未找到路由', 404);
   } catch (err) {
     return errorResponse(err.message, 500);

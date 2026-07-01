@@ -492,6 +492,120 @@ body {
   }
 }
 
+/* ===== Douban ===== */
+.douban-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.douban-tab {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-light);
+  transition: var(--transition);
+}
+.douban-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.douban-tab:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+.douban-count {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 9px;
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  font-size: 11px;
+  margin-left: 4px;
+  padding: 0 5px;
+}
+.douban-tab.active .douban-count { background: rgba(255,255,255,0.3); color: #fff; }
+
+.douban-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.douban-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  transition: var(--transition);
+}
+.douban-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(168,216,234,0.2); }
+.douban-card-title { margin-bottom: 6px; }
+.douban-link {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a73e8;
+  text-decoration: none;
+}
+.douban-link:hover { text-decoration: underline; }
+.douban-stars { font-size: 16px; color: #f5a623; letter-spacing: 1px; margin-bottom: 4px; }
+.douban-review { font-size: 13px; color: var(--text); line-height: 1.6; margin-top: 8px; }
+
+/* Douban Editor */
+.douban-editor { padding: 12px 0; }
+.douban-editor-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.douban-editor-item-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.douban-editor-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+}
+.douban-editor-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.douban-form { margin-top: 12px; }
+.douban-form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.douban-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-family: inherit;
+  transition: var(--transition);
+}
+.douban-input:focus { border-color: var(--primary); }
+.douban-select {
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-family: inherit;
+  background: #fff;
+  transition: var(--transition);
+}
+.douban-select:focus { border-color: var(--primary); }
+.douban-star-select { display: flex; align-items: center; gap: 2px; font-size: 24px; color: #f5a623; cursor: pointer; }
+.douban-star-select span { transition: transform 0.15s; }
+.douban-star-select span:hover { transform: scale(1.2); }
+.douban-review {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  transition: var(--transition);
+  margin-bottom: 8px;
+}
+.douban-review:focus { border-color: var(--primary); }
+.douban-form-actions { display: flex; gap: 8px; }
+
 .empty-state {
   text-align: center;
   padding: 60px 20px;

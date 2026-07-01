@@ -210,18 +210,6 @@ async function onRequest(context) {
       await env.DB.prepare("INSERT INTO messages (username, content, created_at) VALUES (?, ?, datetime('now','localtime'))").bind(user.username, content.trim()).run();
       return jsonResponse({ message: "\u7559\u8A00\u6210\u529F" }, 201);
     }
-    if (path === "fetch-title" && method === "POST") {
-      const { url } = body;
-      if (!url) return errorResponse("\u7F3A\u5C11URL");
-      try {
-        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-        const html = await res.text();
-        const match2 = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        return jsonResponse({ title: match2 ? match2[1].trim() : url });
-      } catch {
-        return jsonResponse({ title: url });
-      }
-    }
     return errorResponse("\u672A\u627E\u5230\u8DEF\u7531", 404);
   } catch (err) {
     return errorResponse(err.message, 500);
@@ -786,7 +774,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-gxeJLI/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-Yz0JiP/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -818,7 +806,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-gxeJLI/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-Yz0JiP/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
