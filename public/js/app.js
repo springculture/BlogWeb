@@ -1283,8 +1283,12 @@ function selectDoubanResult(section, idx) {
   const r = results[idx];
   document.getElementById(`douban-url-${section}`).value = r.url;
   document.getElementById(`douban-search-${section}`).style.display = 'none';
-  // Auto-fetch cover from the selected Douban URL
-  setTimeout(() => fetchCover(section), 100);
+  // Fill cover directly from search result if available
+  if (r.cover) {
+    document.getElementById(`douban-cover-input-${section}`).value = r.cover;
+    document.getElementById(`douban-cover-img-${section}`).src = r.cover;
+    document.getElementById(`douban-cover-${section}`).style.display = 'flex';
+  }
 }
 
 // Enter key to trigger search in douban title input
