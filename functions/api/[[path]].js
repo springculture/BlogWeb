@@ -248,23 +248,6 @@ export async function onRequest(context) {
       return jsonResponse({ message: '留言成功' }, 201);
     }
 
-    // POST /api/fetch-cover
-    if (path === 'fetch-cover' && method === 'POST') {
-      const { url } = body;
-      if (!url) return errorResponse('缺少URL');
-      try {
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        const html = await res.text();
-        const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-        if (ogMatch) return jsonResponse({ cover: ogMatch[1] });
-        const imgMatch = html.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp))["'][^>]*>/i);
-        if (imgMatch) return jsonResponse({ cover: imgMatch[1] });
-        return jsonResponse({ cover: null });
-      } catch { return jsonResponse({ cover: null }); }
-    }
-
     return errorResponse('未找到路由', 404);
   } catch (err) {
     return errorResponse(err.message, 500);

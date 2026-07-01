@@ -981,10 +981,9 @@ function initEditorExtras() {
               <input type="text" class="douban-input" id="douban-title-${section}" placeholder="标题（输入后点🔍去豆瓣搜索）">
               <button class="btn btn-sm btn-primary" onclick="searchDoubanItem('${section}')" title="在豆瓣中搜索">🔍</button>
               <input type="url" class="douban-input" id="douban-url-${section}" placeholder="豆瓣链接">
-              <button class="btn btn-sm btn-outline" onclick="fetchCover('${section}')" title="从豆瓣页面提取封面">🖼️</button>
             </div>
             <div class="douban-form-row">
-              <input type="url" class="douban-input" id="douban-cover-input-${section}" placeholder="封面图片URL（手动输入）">
+              <input type="url" class="douban-input" id="douban-cover-input-${section}" placeholder="粘贴封面URL或直接Ctrl+V粘贴图片">
             </div>
             <div class="douban-cover-preview" id="douban-cover-${section}" style="display:none">
               <img src="" alt="封面预览" id="douban-cover-img-${section}" referrerpolicy="no-referrer">
@@ -1008,13 +1007,34 @@ function initEditorExtras() {
         </div>`;
       textarea.insertAdjacentHTML('afterend', doubanHTML);
       // Auto-show cover preview when user pastes a URL
-      document.getElementById(`douban-cover-input-${section}`).addEventListener('input', function() {
+      const coverInput = document.getElementById(`douban-cover-input-${section}`);
+      coverInput.addEventListener('input', function() {
         const val = this.value.trim();
         if (val) {
           document.getElementById(`douban-cover-img-${section}`).src = val;
           document.getElementById(`douban-cover-${section}`).style.display = 'flex';
         } else {
           document.getElementById(`douban-cover-${section}`).style.display = 'none';
+        }
+      });
+      coverInput.addEventListener('paste', function(e) {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.startsWith('image/')) {
+            e.preventDefault();
+            const file = items[i].getAsFile();
+            if (!file) break;
+            if (file.size > 2 * 1024 * 1024) { alert('图片不能超过 2MB'); break; }
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+              coverInput.value = ev.target.result;
+              document.getElementById(`douban-cover-img-${section}`).src = ev.target.result;
+              document.getElementById(`douban-cover-${section}`).style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+            break;
+          }
         }
       });
     }
@@ -1216,26 +1236,6 @@ function editDoubanItem(section, idx) {
 function deleteDoubanItem(section, idx) {
   state.doubanItems[section].splice(idx, 1);
   renderDoubanItemList(section);
-}
-
-async function fetchCover(section) {
-  const url = document.getElementById(`douban-url-${section}`).value.trim();
-  if (!url) { alert('请先输入豆瓣链接'); return; }
-  const btn = document.querySelector(`#douban-editor-${section} [onclick*="fetchCover"]`);
-  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
-  try {
-    const data = await api('fetch-cover', { method: 'POST', body: JSON.stringify({ url }) });
-    if (data.cover) {
-      document.getElementById(`douban-cover-input-${section}`).value = data.cover;
-      document.getElementById(`douban-cover-img-${section}`).src = data.cover;
-      document.getElementById(`douban-cover-${section}`).style.display = 'flex';
-    } else {
-      alert('未找到封面，可手动输入封面图片URL');
-    }
-  } catch (err) {
-    alert('获取失败，请手动输入封面图片URL');
-  }
-  if (btn) { btn.textContent = '🖼️'; btn.disabled = false; }
 }
 
 function clearCover(section) {
