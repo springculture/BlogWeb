@@ -445,6 +445,7 @@ body {
 }
 .format-toggle input:checked + span { background: var(--primary); color: #fff; }
 .format-toggle:hover span { opacity: 0.8; }
+.editor-actions .btn-outline { font-size: 12px; }
 
 .markdown-preview {
   margin-top: 12px;
@@ -605,6 +606,25 @@ body {
 }
 .douban-review:focus { border-color: var(--primary); }
 .douban-form-actions { display: flex; gap: 8px; }
+
+.douban-cover-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: var(--primary-bg);
+  border-radius: var(--radius-sm);
+}
+.douban-cover-preview img { height: 80px; border-radius: 4px; }
+
+.douban-card { display: flex; gap: 14px; }
+.douban-card-body { flex: 1; min-width: 0; }
+.douban-cover { flex-shrink: 0; width: 90px; }
+.douban-cover img { width: 100%; border-radius: 4px; display: block; }
+
+.douban-editor-item { display: flex; align-items: center; gap: 10px; }
+.douban-editor-thumb { width: 36px; height: 50px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
 
 .empty-state {
   text-align: center;
